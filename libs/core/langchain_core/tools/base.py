@@ -1468,8 +1468,29 @@ def _is_message_content_block(obj: Any) -> bool:
     return False
 
 
+def _json_default(obj: Any) -> Any:
+    """Serialize pydantic models that `json.dumps` cannot encode natively.
+
+    Args:
+        obj: An object that `json.dumps` cannot encode on its own.
+
+    Returns:
+        A JSON-compatible representation of the pydantic model.
+
+    Raises:
+        TypeError: If `obj` is not a pydantic model.
+    """
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode="json")
+    msg = f"Object of type {type(obj).__name__} is not JSON serializable"
+    raise TypeError(msg)
+
+
 def _stringify(content: Any) -> str:
     """Convert content to string, preferring JSON format.
+
+    Pydantic models, including ones nested in containers, are serialized as JSON
+    rather than falling back to their `str()` representation.
 
     Args:
         content: The content to stringify.
@@ -1478,7 +1499,7 @@ def _stringify(content: Any) -> str:
         String representation of the content.
     """
     try:
-        return json.dumps(content, ensure_ascii=False)
+        return json.dumps(content, ensure_ascii=False, default=_json_default)
     except Exception:
         return str(content)
 

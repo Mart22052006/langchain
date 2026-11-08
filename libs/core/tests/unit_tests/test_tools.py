@@ -4671,6 +4671,73 @@ def test_format_output_empty_list() -> None:
     assert result.tool_call_id == "0"
 
 
+class _ReportItem(BaseModel):
+    text: str
+
+
+class _Report(BaseModel):
+    items: list[_ReportItem]
+    note: str | None = None
+
+
+def test_format_output_pydantic_model_is_json() -> None:
+    """A pydantic model is serialized as JSON, not as its Python repr."""
+    report = _Report(items=[_ReportItem(text="星期一\tFriday")])
+    result = _format_output(
+        report, artifact=None, tool_call_id="0", name="t", status="success"
+    )
+    assert isinstance(result, ToolMessage)
+    assert isinstance(result.content, str)
+    assert json.loads(result.content) == {
+        "items": [{"text": "星期一\tFriday"}],
+        "note": None,
+    }
+    assert "星期一" in result.content
+
+
+def test_format_output_nested_pydantic_model_is_json() -> None:
+    """Pydantic models nested in containers are serialized as JSON too."""
+    content = {"report": _Report(items=[]), "items": [_ReportItem(text="a")]}
+    result = _format_output(
+        content, artifact=None, tool_call_id="0", name="t", status="success"
+    )
+    assert isinstance(result, ToolMessage)
+    assert isinstance(result.content, str)
+    assert json.loads(result.content) == {
+        "report": {"items": [], "note": None},
+        "items": [{"text": "a"}],
+    }
+
+
+def test_format_output_non_json_object_falls_back_to_str() -> None:
+    """Objects that are neither JSON-native nor pydantic still use `str()`."""
+
+    class Opaque:
+        def __str__(self) -> str:
+            return "opaque"
+
+    result = _format_output(
+        Opaque(), artifact=None, tool_call_id="0", name="t", status="success"
+    )
+    assert isinstance(result, ToolMessage)
+    assert result.content == "opaque"
+
+
+def test_tool_returning_pydantic_model_gives_json_content() -> None:
+    """End-to-end: invoking a tool with a tool call yields JSON content."""
+
+    @tool
+    def get_report() -> _Report:
+        """Return a report."""
+        return _Report(items=[_ReportItem(text="x")], note="done")
+
+    call = ToolCall(name="get_report", args={}, id="call-1", type="tool_call")
+    result = get_report.invoke(call)
+    assert isinstance(result, ToolMessage)
+    assert isinstance(result.content, str)
+    assert json.loads(result.content) == {"items": [{"text": "x"}], "note": "done"}
+
+
 def test_tool_invoke_returns_list_of_mixin() -> None:
     """End-to-end: a tool returning a list of ToolOutputMixin via invoke."""
 
