@@ -4709,6 +4709,28 @@ def test_format_output_nested_pydantic_model_is_json() -> None:
     }
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 14),
+    reason="pydantic.v1 namespace not supported with Python 3.14+",
+)
+def test_format_output_pydantic_v1_model_is_json() -> None:
+    """A pydantic v1 model is serialized as JSON too."""
+
+    class ItemV1(BaseModelV1):
+        text: str
+
+    result = _format_output(
+        {"item": ItemV1(text="a")},
+        artifact=None,
+        tool_call_id="0",
+        name="t",
+        status="success",
+    )
+    assert isinstance(result, ToolMessage)
+    assert isinstance(result.content, str)
+    assert json.loads(result.content) == {"item": {"text": "a"}}
+
+
 def test_format_output_non_json_object_falls_back_to_str() -> None:
     """Objects that are neither JSON-native nor pydantic still use `str()`."""
 

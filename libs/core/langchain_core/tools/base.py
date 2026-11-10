@@ -1475,13 +1475,15 @@ def _json_default(obj: Any) -> Any:
         obj: An object that `json.dumps` cannot encode on its own.
 
     Returns:
-        A JSON-compatible representation of the pydantic model.
+        A JSON-compatible representation of the pydantic (v2 or v1) model.
 
     Raises:
         TypeError: If `obj` is not a pydantic model.
     """
     if isinstance(obj, BaseModel):
         return obj.model_dump(mode="json")
+    if isinstance(obj, BaseModelV1):
+        return json.loads(obj.json())
     msg = f"Object of type {type(obj).__name__} is not JSON serializable"
     raise TypeError(msg)
 
